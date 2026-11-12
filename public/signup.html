@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create a company workspace — Referleey</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="auth">
+    <aside class="auth-side">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Referleey</a>
+      <div>
+        <h2>Start your referral program in minutes.</h2>
+        <p>You'll be the first admin. Add your open roles, then invite your team with a single link.</p>
+      </div>
+      <p class="small">A Leeys Technology product</p>
+    </aside>
+    <main class="auth-main">
+      <form class="auth-form" id="f" novalidate>
+        <h1>Create your company workspace</h1>
+        <p class="sub">Free to set up. No card needed.</p>
+        <div class="form-error hidden" role="alert"></div>
+        <div class="field"><label for="company">Company name</label><input id="company" name="company" maxlength="80" autocomplete="organization" required></div>
+        <div class="field"><label for="name">Your name</label><input id="name" name="name" maxlength="80" autocomplete="name" required></div>
+        <div class="field"><label for="email">Work email</label><input id="email" name="email" type="email" autocomplete="email" required></div>
+        <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" minlength="8" autocomplete="new-password" required><p class="hint">At least 8 characters.</p></div>
+        <button class="btn btn-block" type="submit">Create workspace</button>
+        <p class="auth-alt">Already have an account? <a href="/login">Sign in</a></p>
+      </form>
+    </main>
+  </div>
+  <script src="/js/common.js"></script>
+  <script>
+    handleForm($('#f'), async (d) => { await api('/auth/signup', { method: 'POST', body: d }); location.href = '/app'; });
+  </script>
+</body>
+</html>

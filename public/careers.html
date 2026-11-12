@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Careers — Referleey</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Referleey</a>
+    </div>
+  </header>
+  <main class="page"><div class="page-narrow" id="root"><p class="muted">Loading…</p></div></main>
+  <script src="/js/common.js"></script>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const ref = q.get('ref') || '';
+    api('/public/company/' + encodeURIComponent(q.get('c') || '')).then(({ company, jobs }) => {
+      document.title = 'Careers at ' + company.name;
+      $('#root').innerHTML = `
+        <h1 style="font-size:clamp(2rem,5vw,3rem)">Work at ${esc(company.name)}</h1>
+        ${company.about ? `<p class="muted" style="margin-top:1rem;font-size:1.1rem">${esc(company.about)}</p>` : ''}
+        ${jobs.length ? `<ul class="job-list">${jobs.map((j) => `
+          <li>
+            <div><h3>${esc(j.title)}</h3><p class="muted small">${esc([j.department, j.location, j.type].filter(Boolean).join(', '))}</p></div>
+            <a class="btn btn-quiet btn-sm" href="/apply?job=${encodeURIComponent(j.id)}${ref ? '&ref=' + encodeURIComponent(ref) : ''}">View and apply</a>
+          </li>`).join('')}</ul>`
+        : `<div class="empty panel" style="margin-top:2rem"><h3>No open roles right now</h3><p>Check back soon.</p></div>`}`;
+    }).catch((err) => {
+      $('#root').innerHTML = `<div class="empty panel"><h3>We couldn't find that careers page</h3><p>${esc(err.message)}</p></div>`;
+    });
+  </script>
+</body>
+</html>

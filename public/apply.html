@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Apply — Referleey</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Referleey</a>
+    </div>
+  </header>
+  <main class="page"><div class="page-narrow" id="root"><p class="muted">Loading…</p></div></main>
+  <script src="/js/common.js"></script>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const ref = q.get('ref') || '';
+    const jobId = q.get('job') || '';
+    api('/public/job/' + encodeURIComponent(jobId) + (ref ? '?ref=' + encodeURIComponent(ref) : '')).then(({ job, referrer }) => {
+      document.title = job.title + ' at ' + job.company_name;
+      const closed = job.status !== 'open';
+      $('#root').innerHTML = `
+        <p class="muted"><a href="/careers?c=${encodeURIComponent(job.company_slug)}${ref ? '&ref=' + encodeURIComponent(ref) : ''}">All roles at ${esc(job.company_name)}</a></p>
+        <h1 style="font-size:clamp(2rem,5vw,3rem);margin-top:.75rem">${esc(job.title)}</h1>
+        <p class="muted" style="margin-top:.5rem">${esc([job.company_name, job.department, job.location, job.type].filter(Boolean).join(', '))}</p>
+        ${referrer ? `<div class="vouch">${esc(referrer)} referred you for this role. Apply here and they'll be credited.</div>` : ''}
+        ${job.description ? `<div class="prose">${esc(job.description)}</div>` : ''}
+        ${closed ? `<div class="empty panel"><h3>This role is no longer open</h3><p>See the other roles at ${esc(job.company_name)}.</p></div>` : `
+        <form class="panel" id="f" novalidate>
+          <h2 style="font-size:1.4rem;margin-bottom:1rem">Apply for this role</h2>
+          <div class="form-error hidden" role="alert"></div>
+          <div class="field-row">
+            <div class="field"><label for="name">Full name</label><input id="name" name="name" maxlength="100" autocomplete="name" required></div>
+            <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label for="phone">Phone</label><input id="phone" name="phone" maxlength="40" autocomplete="tel" placeholder="Optional"></div>
+            <div class="field"><label for="linkedin">LinkedIn or portfolio link</label><input id="linkedin" name="linkedin" type="url" maxlength="300" placeholder="https://"></div>
+          </div>
+          <div class="field"><label for="note">Why this role?</label><textarea id="note" name="note" maxlength="2000" placeholder="A few lines about your experience"></textarea></div>
+          <div class="hp" aria-hidden="true"><label>Leave this empty<input name="website" tabindex="-1" autocomplete="off"></label></div>
+          <button class="btn" type="submit">Send application</button>
+        </form>`}`;
+      const form = $('#f');
+      if (form) handleForm(form, async (d) => {
+        await api('/public/apply', { method: 'POST', body: { ...d, job_id: jobId, ref } });
+        $('#root').innerHTML = `<div class="panel"><div class="done-mark" aria-hidden="true">✓</div>
+          <h1 style="font-size:2rem">Application sent</h1>
+          <p class="muted" style="margin-top:.75rem">${esc(job.company_name)} has your details for the ${esc(job.title)} role${referrer ? `, and ${esc(referrer)} has been credited with the referral` : ''}. They'll contact you by email about next steps.</p></div>`;
+      });
+    }).catch((err) => {
+      $('#root').innerHTML = `<div class="empty panel"><h3>We couldn't find that job</h3><p>${esc(err.message)}</p></div>`;
+    });
+  </script>
+</body>
+</html>

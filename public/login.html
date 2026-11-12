@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in — Referleey</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="auth">
+    <aside class="auth-side">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Referleey</a>
+      <div>
+        <h2>Good people know good people.</h2>
+        <p>Sign in to refer someone, check on your candidates, or manage your company's program.</p>
+      </div>
+      <p class="small">A Leeys Technology product</p>
+    </aside>
+    <main class="auth-main">
+      <form class="auth-form" id="f" novalidate>
+        <h1>Sign in</h1>
+        <p class="sub">Welcome back.</p>
+        <div class="form-error hidden" role="alert"></div>
+        <div class="field"><label for="email">Work email</label><input id="email" name="email" type="email" autocomplete="email" required></div>
+        <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
+        <button class="btn btn-block" type="submit">Sign in</button>
+        <p class="auth-alt">Setting up a program for your company? <a href="/signup">Create a workspace</a><br>Joining your employer's program? Use the invite link from your admin.<br>Just looking? <a href="#" id="demo">Explore the demo</a></p>
+      </form>
+    </main>
+  </div>
+  <script src="/js/common.js"></script>
+  <script>
+    handleForm($('#f'), async (d) => { await api('/auth/login', { method: 'POST', body: d }); location.href = '/app'; });
+    $('#demo').addEventListener('click', (e) => { e.preventDefault(); startDemo('admin'); });
+  </script>
+</body>
+</html>

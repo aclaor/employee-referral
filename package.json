@@ -1,0 +1,11 @@
+{
+  "name": "referleey",
+  "private": true,
+  "description": "Employee referral program platform for companies. Cloudflare Pages + D1.",
+  "scripts": {
+    "dev": "wrangler pages dev public --d1 DB=referleey-local --compatibility-date=2025-01-01"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}

@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Referleey — Employee referral programs for growing companies</title>
+  <meta name="description" content="Run your company's employee referral program in one place. Post roles, set rewards, let your team refer people they trust, and track every referral through to the payout.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Referleey</a>
+      <nav class="site-nav" aria-label="Main">
+        <a class="link" href="#how">How it works</a>
+        <a class="link" href="/login">Sign in</a>
+        <a class="btn btn-sm" href="/signup">Start your program</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <h1>Your next great hire already knows someone on your team.</h1>
+          <p class="lede">Referleey runs your company's referral program from the first introduction to the reward payout. Employees refer people they trust, and nobody has to ask what happened to their candidate.</p>
+          <div class="hero-actions">
+            <a class="btn" href="/signup">Start your company's program</a>
+            <button class="btn btn-ghost" type="button" data-demo="admin">Explore the demo</button>
+          </div>
+          <p class="hero-note">Free to set up. Your team joins with one invite link.</p>
+        </div>
+
+        <div class="slip-stage" aria-label="Interactive example of a referral moving through hiring stages">
+          <div class="slip" id="slip">
+            <div class="slip-main">
+              <div class="who">Kenji Watanabe</div>
+              <div class="role">Senior Backend Engineer, Singapore</div>
+              <dl class="slip-meta">
+                <div><dt>Referred by</dt><dd>Tomás Silva</dd></div>
+                <div><dt>How they know each other</dt><dd>Former colleague</dd></div>
+                <div><dt>Stage</dt><dd id="slip-stage">Submitted</dd></div>
+                <div><dt>Last update</dt><dd id="slip-when">Just now</dd></div>
+              </dl>
+            </div>
+            <div class="slip-stub">
+              <div class="amount">$3,000</div>
+              <div class="label" id="slip-label">Reward when hired</div>
+            </div>
+          </div>
+          <div class="track" id="track" role="group" aria-label="Hiring stage">
+            <button type="button" data-i="0">Submitted</button>
+            <button type="button" data-i="1">In review</button>
+            <button type="button" data-i="2">Interviewing</button>
+            <button type="button" data-i="3">Offer</button>
+            <button type="button" data-i="4">Hired</button>
+          </div>
+          <p class="track-help">Pick a stage to see what Tomás sees.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="how">
+      <div class="wrap">
+        <h2>From open role to paid reward in three steps</h2>
+        <ol class="steps">
+          <li>
+            <h3>Post roles and set the reward</h3>
+            <p>Add the jobs you're hiring for and decide what a successful referral is worth for each one.</p>
+          </li>
+          <li>
+            <h3>Your team refers people they trust</h3>
+            <p>Employees submit a candidate directly or share a personal link. Either way the credit lands with them.</p>
+          </li>
+          <li>
+            <h3>Move candidates along and pay out</h3>
+            <p>Update each referral as it progresses. When someone is hired, the reward is queued for you to mark as paid.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="band band-ink">
+      <div class="wrap">
+        <h2>Built for both sides of a referral</h2>
+        <p class="intro">People stop referring when their candidate disappears into a black hole. Referleey keeps the hiring team organised and the referrer informed.</p>
+        <div class="sides">
+          <div>
+            <h3>For the hiring team</h3>
+            <ul>
+              <li><strong>One pipeline for every referral</strong><span>Search, filter by stage, and open any referral to see its full history.</span></li>
+              <li><strong>Rewards that track themselves</strong><span>Marking someone as hired queues the right reward. You see what's owed and what's paid.</span></li>
+              <li><strong>A careers page out of the box</strong><span>Every company gets a public page listing its open roles.</span></li>
+              <li><strong>Export when you need it</strong><span>Download the pipeline as a spreadsheet for payroll or reporting.</span></li>
+            </ul>
+          </div>
+          <div>
+            <h3>For employees</h3>
+            <ul>
+              <li><strong>Refer in under a minute</strong><span>Name, email and a line about why they'd be good. That's the whole form.</span></li>
+              <li><strong>A personal link for every job</strong><span>Share it anywhere. Anyone who applies through it is credited to you.</span></li>
+              <li><strong>Live status on every candidate</strong><span>See exactly where each person stands without chasing a recruiter.</span></li>
+              <li><strong>A leaderboard worth climbing</strong><span>Points for every referral and every hire, visible to the whole company.</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band">
+      <div class="wrap">
+        <h2>Fair by default</h2>
+        <p class="intro">The rules that cause arguments in referral programs are settled by the system, the same way for everyone.</p>
+        <div class="rules">
+          <div><h3>First referral keeps the credit</h3><p>A candidate can only be put forward once per job, so there's never a dispute over who referred whom.</p></div>
+          <div><h3>No self-referrals</h3><p>Employees can't refer themselves, by form or by link.</p></div>
+          <div><h3>Your company's data stays yours</h3><p>Each company has a separate workspace. Nobody outside it can see your roles, people or candidates.</p></div>
+          <div><h3>Paid rewards are locked</h3><p>Once a reward is marked as paid, the referral's outcome can't be quietly changed.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band band-ink">
+      <div class="wrap closer">
+        <div>
+          <h2>Set up your program this afternoon</h2>
+          <p class="intro">Create your workspace, add your open roles, and send your team the invite link.</p>
+        </div>
+        <div class="hero-actions">
+          <a class="btn btn-sun" href="/signup">Start your company's program</a>
+          <button class="btn btn-ghost" style="color:#fff;border-color:#fff" type="button" data-demo="employee">See it as an employee</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-foot">
+    <div class="wrap">
+      <span>© <span id="year"></span> Referleey, a Leeys Technology product</span>
+      <span><a href="/login">Sign in</a> &nbsp; <a href="/signup">Create a company workspace</a></span>
+    </div>
+  </footer>
+
+  <script src="/js/common.js"></script>
+  <script>
+    $('#year').textContent = new Date().getFullYear();
+    $$('[data-demo]').forEach((b) => b.addEventListener('click', () => startDemo(b.dataset.demo, b)));
+
+    // The referral slip: one stage at a time, the reward stub pays out on "Hired".
+    const stages = ['Submitted', 'In review', 'Interviewing', 'Offer', 'Hired'];
+    const when = ['Just now', '2 days later', '9 days later', '3 weeks later', '4 weeks later'];
+    const buttons = $$('#track button');
+    function setStage(i) {
+      buttons.forEach((b, k) => {
+        b.classList.toggle('done', k < i);
+        b.classList.toggle('now', k === i);
+        b.setAttribute('aria-pressed', k === i);
+      });
+      $('#slip-stage').textContent = stages[i];
+      $('#slip-when').textContent = when[i];
+      $('#slip').classList.toggle('is-hired', i === 4);
+      $('#slip-label').textContent = i === 4 ? 'Reward unlocked for Tomás' : 'Reward when hired';
+    }
+    buttons.forEach((b) => b.addEventListener('click', () => setStage(Number(b.dataset.i))));
+    setStage(0);
+  </script>
+</body>
+</html>
