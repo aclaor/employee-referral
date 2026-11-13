@@ -1,4 +1,4 @@
-// Referleey API — Cloudflare Pages Functions + D1.
+// Referleey API — Cloudflare Workers + D1.
 // One catch-all handler with a small router. Every query is scoped to the
 // signed-in user's company, so companies never see each other's data.
 
@@ -553,7 +553,7 @@ async function publicApply(db, request) {
 export async function onRequest({ request, env, params }) {
   try {
     if (!env.DB) {
-      return json({ error: 'Database is not connected. In Cloudflare Pages, add a D1 binding named DB (Settings → Bindings) and redeploy.' }, 503);
+      return json({ error: 'Database is not connected. Add a D1 binding named DB to this Worker and redeploy.' }, 503);
     }
     const db = env.DB;
     await ensureSchema(db);

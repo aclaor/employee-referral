@@ -2,7 +2,7 @@
 
 Employee referral program platform for companies. Each company gets its own workspace: admins post jobs and set rewards, employees refer candidates or share personal links, and every referral is tracked from submission to reward payout.
 
-Runs entirely on Cloudflare: static pages in `public/`, API in `functions/api/` (Pages Functions), data in a D1 database.
+Runs entirely on Cloudflare: static pages in `public/`, API in `src/` (a Worker), data in a D1 database.
 
 ## What's included
 
@@ -14,15 +14,9 @@ Runs entirely on Cloudflare: static pages in `public/`, API in `functions/api/` 
 
 ## Deploy on Cloudflare
 
-1. **Create the database.** Cloudflare dashboard → Storage & Databases → D1 → Create. Name it `referleey`. No tables to create; the app sets them up on first request.
-2. **Create the Pages project.** Workers & Pages → Create → Pages → Connect to Git → pick `aclaor/employee-referral`.
-   - Framework preset: None
-   - Build command: leave empty
-   - Build output directory: `public`
-3. **Connect the database.** In the Pages project → Settings → Bindings → Add → D1 database. Variable name must be `DB`, database `referleey`.
-4. **Redeploy** (Deployments → Retry deployment) so the binding takes effect.
+The repo is a Cloudflare Worker with static assets. Connect it under Workers & Pages → Create → Import a repository, keep the default deploy command (`npx wrangler deploy`), and deploy. `wrangler.jsonc` sets everything else, including a D1 database named `referleey` that Cloudflare creates and links on the first deploy. The app creates its own tables on first request.
 
-Every push to `main` deploys automatically after that.
+Every push to `main` deploys automatically.
 
 ## Run locally
 
@@ -31,7 +25,7 @@ npm install
 npm run dev
 ```
 
-Opens on http://localhost:8788 with a local D1 database.
+Opens on http://localhost:8787 with a local D1 database.
 
 ## Notes
 
