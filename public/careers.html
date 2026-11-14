@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Careers — Referleey</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#2b3fd6">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -18,10 +23,12 @@
   <main class="page"><div class="page-narrow" id="root"><p class="muted">Loading…</p></div></main>
   <script src="/js/common.js"></script>
   <script>
+    publicAnnouncement();
     const q = new URLSearchParams(location.search);
     const ref = q.get('ref') || '';
     api('/public/company/' + encodeURIComponent(q.get('c') || '')).then(({ company, jobs }) => {
       document.title = 'Careers at ' + company.name;
+      track('careers', '', company.slug);
       $('#root').innerHTML = `
         <h1 style="font-size:clamp(2rem,5vw,3rem)">Work at ${esc(company.name)}</h1>
         ${company.about ? `<p class="muted" style="margin-top:1rem;font-size:1.1rem">${esc(company.about)}</p>` : ''}

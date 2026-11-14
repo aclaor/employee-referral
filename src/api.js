@@ -2,7 +2,9 @@
 // One catch-all handler with a small router. Every query is scoped to the
 // signed-in user's company, so companies never see each other's data.
 
-const STAGES = ['submitted', 'reviewing', 'interviewing', 'offer', 'hired', 'rejected'];
+import { ownerRoutes } from './owner.js';
+
+export const STAGES = ['submitted', 'reviewing', 'interviewing', 'offer', 'hired', 'rejected'];
 const SESSION_DAYS = 30;
 const COOKIE = 'rl_session';
 
@@ -35,7 +37,23 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS referral_events (
     id TEXT PRIMARY KEY, referral_id TEXT NOT NULL, status TEXT NOT NULL,
     note TEXT NOT NULL DEFAULT '', actor_name TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS stats (
+    day TEXT NOT NULL, company_id TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL, target TEXT NOT NULL DEFAULT '-',
+    n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, company_id, kind, target))`,
+  `CREATE TABLE IF NOT EXISTS threads (
+    id TEXT PRIMARY KEY, user_id TEXT, company_id TEXT, name TEXT NOT NULL, email TEXT NOT NULL,
+    subject TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'open',
+    unread_admin INTEGER NOT NULL DEFAULT 0, unread_user INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL, last_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, from_admin INTEGER NOT NULL DEFAULT 0,
+    body TEXT NOT NULL, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS subscribers (email TEXT PRIMARY KEY, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_users_company ON users(company_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_threads_user ON threads(user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_stats_company ON stats(company_id, day)`,
   `CREATE INDEX IF NOT EXISTS idx_jobs_company ON jobs(company_id)`,
   `CREATE INDEX IF NOT EXISTS idx_referrals_company ON referrals(company_id)`,
   `CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_id)`,
@@ -43,64 +61,87 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_events_referral ON referral_events(referral_id)`,
 ];
 
+// Columns added after the first release. Adding a column that already exists throws, which is fine.
+const MIGRATIONS = [
+  `ALTER TABLE companies ADD COLUMN suspended INTEGER NOT NULL DEFAULT 0`,
+];
 let schemaReady = false;
-async function ensureSchema(db) {
+export async function ensureSchema(db) {
   if (schemaReady) return;
   await db.batch(SCHEMA.map((s) => db.prepare(s)));
+  for (const m of MIGRATIONS) {
+    try { await db.prepare(m).run(); } catch (e) { if (!/duplicate column/i.test(String(e.message))) throw e; }
+  }
   schemaReady = true;
 }
 
+// Anonymous daily counters. No names, emails or IP addresses are stored.
+const TRACK_KINDS = new Set(['visit', 'page', 'careers', 'job', 'refclick']);
+export function bump(db, kind, companyId = '', target = '-') {
+  return db.prepare(`INSERT INTO stats (day, company_id, kind, target, n) VALUES (?,?,?,?,1)
+    ON CONFLICT(day, company_id, kind, target) DO UPDATE SET n = n + 1`)
+    .bind(new Date().toISOString().slice(0, 10), companyId || '', kind, String(target || '-').slice(0, 80).toLowerCase());
+}
+export async function getSetting(db, key, fallback = null) {
+  const r = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first();
+  if (!r) return fallback;
+  try { return JSON.parse(r.value); } catch { return fallback; }
+}
+export function setSetting(db, key, value) {
+  return db.prepare('INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').bind(key, JSON.stringify(value));
+}
+
 // ---------- helpers ----------
-class HttpError extends Error {
+export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
-const json = (data, status = 200, headers = {}) =>
+export const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), {
     status,
     headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers },
   });
-const now = () => new Date().toISOString();
-const uid = () => crypto.randomUUID();
+export const now = () => new Date().toISOString();
+export const uid = () => crypto.randomUUID();
 const toHex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 const fromHex = (hex) => new Uint8Array(hex.match(/.{2}/g).map((h) => parseInt(h, 16)));
-function randomCode(len) {
+export function randomCode(len) {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   const bytes = crypto.getRandomValues(new Uint8Array(len));
   return [...bytes].map((b) => chars[b % chars.length]).join('');
 }
-async function sha256(text) {
+export async function sha256(text) {
   return toHex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
 }
-async function hashPassword(password, saltHex) {
+export async function hashPassword(password, saltHex) {
   const salt = saltHex ? fromHex(saltHex) : crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, key, 256);
   return { hash: toHex(bits), salt: toHex(salt) };
 }
-function safeEqual(a, b) {
+export function safeEqual(a, b) {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
 }
-function str(value, field, { max = 200, required = false } = {}) {
+export function str(value, field, { max = 200, required = false } = {}) {
   const s = (value == null ? '' : String(value)).trim();
   if (required && !s) throw new HttpError(400, `${field} is required.`);
   if (s.length > max) throw new HttpError(400, `${field} must be ${max} characters or fewer.`);
   return s;
 }
-function email(value, field = 'Email') {
+export function email(value, field = 'Email') {
   const e = str(value, field, { max: 200, required: true }).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) throw new HttpError(400, `${field} doesn't look like a valid address.`);
   return e;
 }
-function password(value) {
+export function password(value) {
   const p = value == null ? '' : String(value);
   if (p.length < 8) throw new HttpError(400, 'Password must be at least 8 characters.');
   if (p.length > 200) throw new HttpError(400, 'Password is too long.');
   return p;
 }
-function money(value, field) {
+export function money(value, field) {
   const n = Math.round(Number(value));
   if (!Number.isFinite(n) || n < 0 || n > 10000000) throw new HttpError(400, `${field} must be a number between 0 and 10,000,000.`);
   return n;
@@ -108,13 +149,13 @@ function money(value, field) {
 function slugify(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'company';
 }
-async function body(request) {
+export async function body(request) {
   if (!(request.headers.get('content-type') || '').includes('application/json')) {
     throw new HttpError(415, 'Send JSON.');
   }
   try { return (await request.json()) || {}; } catch { throw new HttpError(400, 'Invalid JSON.'); }
 }
-function getCookie(request, name) {
+export function getCookie(request, name) {
   const raw = request.headers.get('cookie') || '';
   for (const part of raw.split(';')) {
     const [k, ...v] = part.trim().split('=');
@@ -133,13 +174,13 @@ async function startSession(db, request, userId) {
     .bind(await sha256(token), userId, expires).run();
   return { 'set-cookie': sessionCookie(request, token, SESSION_DAYS * 86400) };
 }
-async function currentUser(db, request) {
+export async function currentUser(db, request) {
   const token = getCookie(request, COOKIE);
   if (!token) return null;
   const row = await db.prepare(
     `SELECT u.id, u.company_id, u.email, u.name, u.role, u.department, u.ref_code, s.expires_at
-     FROM sessions s JOIN users u ON u.id = s.user_id
-     WHERE s.token_hash = ? AND u.active = 1`
+     FROM sessions s JOIN users u ON u.id = s.user_id JOIN companies c ON c.id = u.company_id
+     WHERE s.token_hash = ? AND u.active = 1 AND c.suspended = 0`
   ).bind(await sha256(token)).first();
   if (!row || row.expires_at < now()) return null;
   delete row.expires_at;
@@ -177,6 +218,7 @@ async function signupCompany(db, request) {
       .bind(companyId, companyName, await uniqueSlug(db, companyName), randomCode(8), ts),
     db.prepare('INSERT INTO users (id, company_id, email, name, password_hash, salt, role, department, ref_code, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
       .bind(userId, companyId, mail, name, hash, salt, 'admin', '', randomCode(7).toLowerCase(), ts),
+    bump(db, 'signup'),
   ]);
   return json({ ok: true }, 201, await startSession(db, request, userId));
 }
@@ -188,7 +230,7 @@ async function joinCompany(db, request) {
   const mail = email(b.email);
   const pw = password(b.password);
   const department = str(b.department, 'Department', { max: 60 });
-  const company = await db.prepare('SELECT id FROM companies WHERE join_code = ?').bind(code).first();
+  const company = await db.prepare('SELECT id FROM companies WHERE join_code = ? AND suspended = 0').bind(code).first();
   if (!company) throw new HttpError(404, "That invite code doesn't match any company. Check the link from your admin.");
   if (await db.prepare('SELECT 1 FROM users WHERE email = ?').bind(mail).first()) {
     throw new HttpError(409, 'An account with this email already exists. Sign in instead.');
@@ -197,6 +239,7 @@ async function joinCompany(db, request) {
   const userId = uid();
   await db.prepare('INSERT INTO users (id, company_id, email, name, password_hash, salt, role, department, ref_code, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
     .bind(userId, company.id, mail, name, hash, salt, 'employee', department, randomCode(7).toLowerCase(), now()).run();
+  await bump(db, 'join', company.id).run();
   return json({ ok: true }, 201, await startSession(db, request, userId));
 }
 
@@ -204,12 +247,13 @@ async function login(db, request) {
   const b = await body(request);
   const mail = email(b.email);
   const pw = String(b.password || '');
-  const user = await db.prepare('SELECT id, password_hash, salt, active FROM users WHERE email = ?').bind(mail).first();
+  const user = await db.prepare('SELECT u.id, u.password_hash, u.salt, u.active, c.suspended FROM users u JOIN companies c ON c.id = u.company_id WHERE u.email = ?').bind(mail).first();
   const fail = new HttpError(401, 'Email or password is incorrect.');
   if (!user || user.salt === '-') throw fail;
   const { hash } = await hashPassword(pw, user.salt);
   if (!safeEqual(hash, user.password_hash)) throw fail;
   if (!user.active) throw new HttpError(403, 'This account has been removed by a company admin.');
+  if (user.suspended) throw new HttpError(403, "This company's workspace is suspended. Contact Referleey support.");
   return json({ ok: true }, 200, await startSession(db, request, user.id));
 }
 
@@ -302,12 +346,14 @@ async function demo(db, request) {
 
 async function me(db, user) {
   const company = await db.prepare('SELECT * FROM companies WHERE id = ?').bind(user.company_id).first();
-  const out = { user, company: companyPublic(company), stages: STAGES };
+  const unread = await db.prepare('SELECT COALESCE(SUM(unread_user),0) AS n FROM threads WHERE user_id = ?').bind(user.id).first();
+  const out = { user, company: companyPublic(company), stages: STAGES, support_unread: unread.n,
+    has_password: (await db.prepare('SELECT salt FROM users WHERE id = ?').bind(user.id).first()).salt !== '-' };
   if (user.role === 'admin') out.company.join_code = company.join_code;
   return json(out);
 }
 
-async function leaderboardRows(db, companyId) {
+export async function leaderboardRows(db, companyId) {
   const { results } = await db.prepare(
     `SELECT u.id, u.name, u.department,
        COUNT(r.id) AS referrals,
@@ -348,6 +394,7 @@ async function dashboard(db, user) {
     recent: recent.results, trend: trend.results.reverse(),
     leaderboard: board.slice(0, 5),
     rank: board.findIndex((r) => r.id === user.id) + 1,
+    link_opens: await myLinkStats(db, user),
   });
 }
 
@@ -430,6 +477,7 @@ async function insertReferral(db, { company_id, job, referrer, b, source }) {
       .bind(id, company_id, job.id, referrer ? referrer.id : null, cname, cemail, phone, linkedin, relationship, note, source, ts, ts),
     db.prepare('INSERT INTO referral_events (id, referral_id, status, note, actor_name, created_at) VALUES (?,?,?,?,?,?)')
       .bind(uid(), id, 'submitted', source === 'link' ? 'Applied through a referral link' : '', source === 'link' ? cname : referrer.name, ts),
+    bump(db, source === 'link' ? 'apply' : 'refer', company_id, job.id),
   ]);
   return id;
 }
@@ -508,14 +556,135 @@ async function regenerateCode(db, user) {
   return json({ join_code: code });
 }
 
+async function changePassword(db, user, request) {
+  const b = await body(request);
+  const row = await db.prepare('SELECT password_hash, salt FROM users WHERE id = ?').bind(user.id).first();
+  if (row.salt === '-') throw new HttpError(400, "Demo accounts don't have a password.");
+  const { hash } = await hashPassword(String(b.current || ''), row.salt);
+  if (!safeEqual(hash, row.password_hash)) throw new HttpError(400, 'Your current password is incorrect.');
+  const next = await hashPassword(password(b.next));
+  const token = getCookie(request, COOKIE);
+  await db.batch([
+    db.prepare('UPDATE users SET password_hash = ?, salt = ? WHERE id = ?').bind(next.hash, next.salt, user.id),
+    // Sign out every other device.
+    db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?').bind(user.id, await sha256(token || '')),
+  ]);
+  return json({ ok: true });
+}
+export function tempPassword() {
+  return `${randomCode(4)}-${randomCode(4)}-${randomCode(4)}`.toLowerCase();
+}
+export async function resetPasswordFor(db, userId) {
+  const temp = tempPassword();
+  const { hash, salt } = await hashPassword(temp);
+  await db.batch([
+    db.prepare('UPDATE users SET password_hash = ?, salt = ? WHERE id = ?').bind(hash, salt, userId),
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId),
+  ]);
+  return temp;
+}
+async function resetMemberPassword(db, user, id) {
+  if (id === user.id) throw new HttpError(400, 'Change your own password under Account.');
+  const m = await db.prepare('SELECT salt FROM users WHERE id = ? AND company_id = ? AND active = 1').bind(id, user.company_id).first();
+  if (!m) throw new HttpError(404, 'Team member not found.');
+  if (m.salt === '-') throw new HttpError(400, "Demo accounts don't have a password.");
+  return json({ temp_password: await resetPasswordFor(db, id) });
+}
+
+async function companyInsights(db, user, url) {
+  const days = Math.min(90, Math.max(1, Number(url.searchParams.get('days')) || 30));
+  const since = new Date(Date.now() - (days - 1) * 864e5).toISOString().slice(0, 10);
+  const [rows, daily, jobs, people] = await Promise.all([
+    db.prepare('SELECT kind, target, SUM(n) AS n FROM stats WHERE company_id = ? AND day >= ? GROUP BY kind, target').bind(user.company_id, since).all(),
+    db.prepare(`SELECT day, kind, SUM(n) AS n FROM stats WHERE company_id = ? AND day >= ? GROUP BY day, kind`).bind(user.company_id, since).all(),
+    db.prepare('SELECT id, title, status, bonus FROM jobs WHERE company_id = ?').bind(user.company_id).all(),
+    db.prepare('SELECT id, name, ref_code FROM users WHERE company_id = ? AND active = 1').bind(user.company_id).all(),
+  ]);
+  return json({ days, rows: rows.results, daily: daily.results, jobs: jobs.results,
+    people: people.results.map((p) => ({ id: p.id, name: p.name, ref: p.ref_code })) });
+}
+async function myLinkStats(db, user) {
+  const r = await db.prepare(`SELECT COALESCE(SUM(n),0) AS n FROM stats WHERE company_id = ? AND kind = 'refclick' AND target = ?`).bind(user.company_id, user.ref_code).first();
+  return r.n;
+}
+
+// Support chat between a signed-in user and the site owner.
+async function supportThread(db, user) {
+  const t = await db.prepare('SELECT * FROM threads WHERE user_id = ? ORDER BY last_at DESC LIMIT 1').bind(user.id).first();
+  if (!t) return json({ thread: null, messages: [] });
+  const { results } = await db.prepare('SELECT from_admin, body, created_at FROM messages WHERE thread_id = ? ORDER BY created_at ASC LIMIT 500').bind(t.id).all();
+  if (t.unread_user) await db.prepare('UPDATE threads SET unread_user = 0 WHERE id = ?').bind(t.id).run();
+  return json({ thread: { id: t.id, status: t.status }, messages: results });
+}
+async function supportSend(db, user, request) {
+  const b = await body(request);
+  const text = str(b.body, 'Message', { max: 3000, required: true });
+  let t = await db.prepare('SELECT id FROM threads WHERE user_id = ? ORDER BY last_at DESC LIMIT 1').bind(user.id).first();
+  const ts = now();
+  const stmts = [];
+  if (!t) {
+    t = { id: uid() };
+    stmts.push(db.prepare('INSERT INTO threads (id, user_id, company_id, name, email, subject, unread_admin, created_at, last_at) VALUES (?,?,?,?,?,?,0,?,?)')
+      .bind(t.id, user.id, user.company_id, user.name, user.email, text.slice(0, 80), ts, ts));
+  }
+  stmts.push(db.prepare('INSERT INTO messages (id, thread_id, from_admin, body, created_at) VALUES (?,?,0,?,?)').bind(uid(), t.id, text, ts));
+  stmts.push(db.prepare("UPDATE threads SET unread_admin = unread_admin + 1, last_at = ?, status = 'open' WHERE id = ?").bind(ts, t.id));
+  await db.batch(stmts);
+  return json({ ok: true }, 201);
+}
+
 // ---------- public (no sign-in) ----------
+async function publicTrack(db, request) {
+  try {
+    const b = await body(request);
+    const events = (Array.isArray(b.e) ? b.e : [b]).slice(0, 5).filter((x) => x && TRACK_KINDS.has(x.k));
+    const stmts = [];
+    for (const x of events) {
+      let company = '';
+      if (x.c) {
+        const c = await db.prepare('SELECT id FROM companies WHERE slug = ? OR id = ?').bind(String(x.c).slice(0, 60), String(x.c).slice(0, 60)).first();
+        if (!c) continue;
+        company = c.id;
+      }
+      stmts.push(bump(db, x.k, company, x.t));
+    }
+    if (stmts.length) await db.batch(stmts);
+  } catch { /* tracking must never break a page */ }
+  return new Response(null, { status: 204 });
+}
+async function publicSubscribe(db, request) {
+  const b = await body(request);
+  if (b.website) return json({ ok: true });
+  await db.prepare('INSERT OR IGNORE INTO subscribers (email, created_at) VALUES (?,?)').bind(email(b.email), now()).run();
+  return json({ ok: true }, 201);
+}
+async function publicContact(db, request) {
+  const b = await body(request);
+  if (b.website) return json({ ok: true }, 201);
+  const name = str(b.name, 'Name', { max: 80, required: true });
+  const mail = email(b.email);
+  const text = str(b.message, 'Message', { max: 3000, required: true });
+  const id = uid(), ts = now();
+  await db.batch([
+    db.prepare('INSERT INTO threads (id, user_id, company_id, name, email, subject, unread_admin, created_at, last_at) VALUES (?,?,?,?,?,?,1,?,?)')
+      .bind(id, null, null, name, mail, str(b.company, 'Company', { max: 80 }) || text.slice(0, 80), ts, ts),
+    db.prepare('INSERT INTO messages (id, thread_id, from_admin, body, created_at) VALUES (?,?,0,?,?)').bind(uid(), id, text, ts),
+  ]);
+  return json({ ok: true }, 201);
+}
+async function publicAnnouncement(db) {
+  const a = await getSetting(db, 'announcement', null);
+  const live = a && a.text && (!a.ends_at || a.ends_at > now());
+  return json({ announcement: live ? { text: a.text, link: a.link || '', audience: a.audience || 'all' } : null });
+}
+
 async function publicInvite(db, code) {
-  const c = await db.prepare('SELECT name FROM companies WHERE join_code = ?').bind(code.toUpperCase()).first();
+  const c = await db.prepare('SELECT name FROM companies WHERE join_code = ? AND suspended = 0').bind(code.toUpperCase()).first();
   if (!c) throw new HttpError(404, 'Invite not found.');
   return json({ company: c.name });
 }
 async function publicCompany(db, slug) {
-  const c = await db.prepare('SELECT * FROM companies WHERE slug = ?').bind(slug).first();
+  const c = await db.prepare('SELECT * FROM companies WHERE slug = ? AND suspended = 0').bind(slug).first();
   if (!c) throw new HttpError(404, 'Company not found.');
   const { results } = await db.prepare(
     `SELECT id, title, department, location, type, description FROM jobs WHERE company_id = ? AND status = 'open' ORDER BY created_at DESC`
@@ -525,7 +694,7 @@ async function publicCompany(db, slug) {
 async function publicJob(db, id, ref) {
   const j = await db.prepare(
     `SELECT j.id, j.title, j.department, j.location, j.type, j.description, j.status, j.company_id, c.name AS company_name, c.slug AS company_slug, c.about AS company_about
-     FROM jobs j JOIN companies c ON c.id = j.company_id WHERE j.id = ?`
+     FROM jobs j JOIN companies c ON c.id = j.company_id WHERE j.id = ? AND c.suspended = 0`
   ).bind(id).first();
   if (!j) throw new HttpError(404, 'Job not found.');
   let referrer = null;
@@ -577,6 +746,11 @@ export async function onRequest({ request, env, params }) {
     if (m === 'GET' && p[0] === 'public' && p[1] === 'company' && p[2]) return await publicCompany(db, p[2]);
     if (m === 'GET' && p[0] === 'public' && p[1] === 'job' && p[2]) return await publicJob(db, p[2], url.searchParams.get('ref'));
     if (route === 'POST /public/apply') return await publicApply(db, request);
+    if (route === 'POST /public/track') return await publicTrack(db, request);
+    if (route === 'POST /public/subscribe') return await publicSubscribe(db, request);
+    if (route === 'POST /public/contact') return await publicContact(db, request);
+    if (route === 'GET /public/announcement') return await publicAnnouncement(db);
+    if (p[0] === 'owner') return await ownerRoutes({ db, request, env, p, m, url });
 
     const user = await currentUser(db, request);
     if (!user) throw new HttpError(401, 'Sign in to continue.');
@@ -602,6 +776,11 @@ export async function onRequest({ request, env, params }) {
     if (m === 'PUT' && p[0] === 'team' && p[1]) { adminOnly(); return await updateMember(db, user, request, p[1]); }
     if (route === 'PUT /company') { adminOnly(); return await updateCompany(db, user, request); }
     if (route === 'POST /company/invite-code') { adminOnly(); return await regenerateCode(db, user); }
+    if (route === 'GET /insights') { adminOnly(); return await companyInsights(db, user, url); }
+    if (m === 'POST' && p[0] === 'team' && p[1] && p[2] === 'reset-password') { adminOnly(); return await resetMemberPassword(db, user, p[1]); }
+    if (route === 'PUT /account/password') return await changePassword(db, user, request);
+    if (route === 'GET /support') return await supportThread(db, user);
+    if (route === 'POST /support') return await supportSend(db, user, request);
 
     throw new HttpError(404, 'Not found.');
   } catch (err) {

@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Referleey — Employee referral programs for growing companies</title>
   <meta name="description" content="Run your company's employee referral program in one place. Post roles, set rewards, let your team refer people they trust, and track every referral through to the payout.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Referleey: employee referral programs for growing companies">
+  <meta property="og:description" content="Post roles, set rewards, let your team refer people they trust, and track every referral through to the payout.">
+  <meta property="og:image" content="/icons/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#2b3fd6">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -16,6 +26,7 @@
       <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Referleey</a>
       <nav class="site-nav" aria-label="Main">
         <a class="link" href="#how">How it works</a>
+        <a class="link" href="#contact">Contact</a>
         <a class="link" href="/login">Sign in</a>
         <a class="btn btn-sm" href="/signup">Start your program</a>
       </nav>
@@ -124,6 +135,33 @@
       </div>
     </section>
 
+    <section class="band" id="contact">
+      <div class="wrap talk">
+        <div>
+          <h2>Questions before you start?</h2>
+          <p class="intro">Tell us about your team and what you want from a referral program, and we'll reply by email.</p>
+          <form class="panel news" id="news" novalidate>
+            <h3>Product news</h3>
+            <p class="muted small">New features and referral program tips, about once a month.</p>
+            <div class="form-error hidden" role="alert"></div>
+            <div class="copybox"><input name="email" type="email" autocomplete="email" placeholder="you@company.com" aria-label="Email for product news" required><button class="btn btn-sm" type="submit">Subscribe</button></div>
+            <div class="hp" aria-hidden="true"><label>Leave this empty<input name="website" tabindex="-1" autocomplete="off"></label></div>
+          </form>
+        </div>
+        <form class="panel" id="contact-form" novalidate>
+          <div class="form-error hidden" role="alert"></div>
+          <div class="field-row">
+            <div class="field"><label for="c-name">Your name</label><input id="c-name" name="name" maxlength="80" autocomplete="name" required></div>
+            <div class="field"><label for="c-email">Work email</label><input id="c-email" name="email" type="email" autocomplete="email" required></div>
+          </div>
+          <div class="field"><label for="c-co">Company</label><input id="c-co" name="company" maxlength="80" autocomplete="organization" placeholder="Optional"></div>
+          <div class="field"><label for="c-msg">Message</label><textarea id="c-msg" name="message" maxlength="3000" required></textarea></div>
+          <div class="hp" aria-hidden="true"><label>Leave this empty<input name="website" tabindex="-1" autocomplete="off"></label></div>
+          <button class="btn" type="submit">Send message</button>
+        </form>
+      </div>
+    </section>
+
     <section class="band band-ink">
       <div class="wrap closer">
         <div>
@@ -148,6 +186,17 @@
   <script src="/js/common.js"></script>
   <script>
     $('#year').textContent = new Date().getFullYear();
+    track('visit', referrerHost());
+    track('page', 'home');
+    publicAnnouncement();
+    handleForm($('#news'), async (d) => {
+      await api('/public/subscribe', { method: 'POST', body: d });
+      $('#news').innerHTML = '<h3>You\'re subscribed</h3><p class="muted small">Look out for the next update in your inbox.</p>';
+    });
+    handleForm($('#contact-form'), async (d) => {
+      await api('/public/contact', { method: 'POST', body: d });
+      $('#contact-form').innerHTML = '<div class="done-mark" aria-hidden="true">✓</div><h3>Message sent</h3><p class="muted" style="margin-top:.5rem">Thanks. We\'ll reply to the email you gave us.</p>';
+    });
     $$('[data-demo]').forEach((b) => b.addEventListener('click', () => startDemo(b.dataset.demo, b)));
 
     // The referral slip: one stage at a time, the reward stub pays out on "Hired".

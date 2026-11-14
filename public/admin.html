@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#141b3c">
+  <title>Referleey Admin</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div id="login" class="hidden">
+    <div class="auth">
+      <aside class="auth-side owner-side">
+        <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Referleey</a>
+        <div><h2>Site admin</h2><p>Every company, person and referral on Referleey, in one place.</p></div>
+        <p class="small">A Leeys Technology product</p>
+      </aside>
+      <main class="auth-main">
+        <form class="auth-form" id="login-form" novalidate>
+          <h1>Admin sign in</h1>
+          <p class="sub" id="login-sub">Enter the admin password.</p>
+          <div class="form-error hidden" role="alert"></div>
+          <div class="field"><label for="pw">Admin password</label><input id="pw" name="password" type="password" autocomplete="current-password" required></div>
+          <button class="btn btn-block" type="submit">Sign in</button>
+        </form>
+      </main>
+    </div>
+  </div>
+
+  <div class="app hidden" id="shell">
+    <aside class="side owner" id="side">
+      <a class="brand" href="#dashboard"><span class="brand-mark" aria-hidden="true"></span>Referleey</a>
+      <div class="co"><strong>Site admin</strong><span>Everything on the platform</span></div>
+      <nav id="nav" aria-label="Admin"></nav>
+      <div class="me"><a href="/" target="_blank" rel="noopener" class="side-link">View site</a><button type="button" id="logout">Sign out</button></div>
+    </aside>
+    <main class="main">
+      <button class="btn btn-quiet btn-sm menu-btn" type="button" id="menu">Menu</button>
+      <div id="view"><p class="muted">Loading…</p></div>
+    </main>
+  </div>
+  <dialog id="dlg"></dialog>
+  <script src="/js/common.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

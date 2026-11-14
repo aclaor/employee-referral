@@ -99,3 +99,45 @@ async function startDemo(role, button) {
     if (button) { button.disabled = false; button.textContent = 'Explore the demo'; }
   }
 }
+
+// Anonymous page counters: one count per page per visit.
+function track(kind, target = '', company = '') {
+  try {
+    const key = `rl_t:${kind}:${target}:${company}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+  } catch { /* storage blocked: count anyway */ }
+  const payload = JSON.stringify({ k: kind, t: target, c: company });
+  const blob = new Blob([payload], { type: 'application/json' });
+  if (!(navigator.sendBeacon && navigator.sendBeacon('/api/public/track', blob))) {
+    fetch('/api/public/track', { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
+  }
+}
+function referrerHost() {
+  try {
+    const h = document.referrer ? new URL(document.referrer).hostname.replace(/^www\./, '') : '';
+    return h && h !== location.hostname ? h : '';
+  } catch { return ''; }
+}
+
+// Site-wide announcement banner set from the admin.
+function showBanner(a, container = document.body) {
+  if (!a || !a.text) return;
+  try { if (sessionStorage.getItem(`rl_ann:${a.text}`)) return; } catch { /* ignore */ }
+  const bar = document.createElement('div');
+  bar.className = 'announce';
+  bar.setAttribute('role', 'status');
+  const safeLink = /^(https?:\/\/|\/)/i.test(a.link || '') ? a.link : '';
+  bar.innerHTML = `<span>${esc(a.text)}</span>${safeLink ? ` <a href="${esc(safeLink)}">Learn more</a>` : ''}<button type="button" aria-label="Dismiss announcement">×</button>`;
+  bar.querySelector('button').addEventListener('click', () => {
+    bar.remove();
+    try { sessionStorage.setItem(`rl_ann:${a.text}`, '1'); } catch { /* ignore */ }
+  });
+  container.prepend(bar);
+}
+async function publicAnnouncement() {
+  try {
+    const { announcement: a } = await api('/public/announcement');
+    if (a && (a.audience === 'all' || a.audience === 'public')) showBanner(a);
+  } catch { /* optional */ }
+}

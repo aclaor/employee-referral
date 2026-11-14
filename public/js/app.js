@@ -47,6 +47,7 @@ async function overview() {
       <div><div class="num">${cash(d.rewards_pending)}</div><div class="cap">${admin ? 'Rewards to pay' : 'Rewards on the way'}</div></div>
       <div><div class="num">${admin ? cash(d.rewards_paid) : (d.rank ? `#${d.rank}` : 'n/a')}</div><div class="cap">${admin ? 'Rewards paid' : `Leaderboard rank, ${cash(d.rewards_paid)} paid`}</div></div>
     </div>
+    ${admin ? '' : `<p class="muted small" style="margin-top:.75rem">Your referral links have been opened <b>${d.link_opens}</b> ${d.link_opens === 1 ? 'time' : 'times'}. <a href="#/jobs">Copy a link to share</a></p>`}
     <div class="grid-2">
       <section class="panel">
         <h2>${admin ? 'Pipeline' : 'Where your candidates stand'}</h2>
@@ -332,6 +333,7 @@ async function teamView() {
           <td class="num-cell">${m.referrals}</td>
           <td class="muted">${esc(fmtDate(m.created_at))}</td>
           <td class="num-cell">${m.id === S.user.id ? '' : `
+            ${m.email.endsWith('.invalid') ? '' : `<button class="btn btn-quiet btn-sm" type="button" data-reset="${esc(m.id)}" data-name="${esc(m.name)}">Reset password</button>`}
             <button class="btn btn-quiet btn-sm" type="button" data-role="${esc(m.id)}" data-to="${m.role === 'admin' ? 'employee' : 'admin'}">${m.role === 'admin' ? 'Make employee' : 'Make admin'}</button>
             <button class="btn btn-danger btn-sm" type="button" data-remove="${esc(m.id)}" data-name="${esc(m.name)}">Remove</button>`}</td></tr>`).join('')}</tbody>
     </table></div>`;
@@ -347,6 +349,19 @@ async function teamView() {
       } catch (err) { toast(err.message, true); }
     });
   });
+  $$('[data-reset]').forEach((b) => b.addEventListener('click', () => {
+    openDialog(`Reset ${b.dataset.name}'s password?`, `<p class="muted" style="margin-bottom:1.25rem">Their current password stops working and they're signed out everywhere. You'll get a temporary password to give them privately.</p>
+      <div class="dlg-foot"><button class="btn btn-ghost" type="button" id="no">Cancel</button><button class="btn" type="button" id="yes">Reset password</button></div>`);
+    $('#no').addEventListener('click', () => dlg.close());
+    $('#yes').addEventListener('click', async () => {
+      try {
+        const r = await api(`/team/${b.dataset.reset}/reset-password`, { method: 'POST', body: {} });
+        openDialog('Temporary password', `<p class="muted" style="margin-bottom:1rem">Give this to ${esc(b.dataset.name)}. They can change it under Account after signing in.</p>
+          <div class="copybox"><input readonly value="${esc(r.temp_password)}" aria-label="Temporary password"><button class="btn btn-sm" type="button" id="cp">Copy</button></div>`);
+        $('#cp').addEventListener('click', () => copyText(r.temp_password, 'Password copied'));
+      } catch (err) { toast(err.message, true); }
+    });
+  }));
   $$('[data-role]').forEach((b) => b.addEventListener('click', async () => {
     try { await api(`/team/${b.dataset.role}`, { method: 'PUT', body: { role: b.dataset.to } }); toast('Access updated'); teamView(); }
     catch (err) { toast(err.message, true); }
@@ -391,14 +406,105 @@ function settingsView() {
   });
 }
 
+// ---------- insights (admin) ----------
+let insDays = 30;
+async function insightsView() {
+  const d = await api(`/insights?days=${insDays}`);
+  const tot = (k) => d.rows.filter((r) => r.kind === k).reduce((t, r) => t + r.n, 0);
+  const by = (k) => new Map(d.rows.filter((r) => r.kind === k).map((r) => [r.target, r.n]));
+  const careers = tot('careers'), views = tot('job'), applied = tot('apply'), referred = tot('refer'), opens = tot('refclick'), joined = tot('join');
+  const jv = by('job'), ja = by('apply'), jr = by('refer'), clicks = by('refclick');
+  const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : 'n/a');
+  const jobs = d.jobs.map((j) => ({ ...j, v: jv.get(j.id) || 0, a: ja.get(j.id) || 0, r: jr.get(j.id) || 0 }))
+    .sort((a, b) => b.v - a.v || b.r - a.r);
+  const sharers = d.people.map((p) => ({ ...p, n: clicks.get(p.ref) || 0 })).filter((p) => p.n).sort((a, b) => b.n - a.n).slice(0, 10);
+  const days = [];
+  for (let i = d.days - 1; i >= 0; i--) days.push(new Date(Date.now() - i * 864e5).toISOString().slice(0, 10));
+  const dv = (day, k) => d.daily.filter((x) => x.day === day && x.kind === k).reduce((t, x) => t + x.n, 0);
+  const daily = days.map((x) => dv(x, 'careers') + dv(x, 'job'));
+  const max = Math.max(1, ...daily);
+  const step = (label, n, hint) => `<div class="ins-step"><span>${label}</span><b>${n}</b><small>${hint}</small></div>`;
+  const advice = (j) => j.status !== 'open' ? '' : j.v >= 10 && !j.a ? '<span class="tag warn">Many views, no applications. Try a clearer description or a bigger reward.</span>'
+    : !j.v && !j.r ? '<span class="tag warn">No activity yet. Ask your team to share it.</span>' : j.v >= 5 && j.a / j.v >= 0.1 ? '<span class="tag good">Converting well</span>' : '';
+  view.innerHTML = `
+    ${head('Insights', 'How people find and respond to your jobs.')}
+    <div class="chips" role="group" style="margin:-0.75rem 0 1.25rem">${[[7, '7 days'], [30, '30 days'], [90, '90 days']].map(([v, l]) => `<button type="button" class="chip ${insDays === v ? 'on' : ''}" data-days="${v}" aria-pressed="${insDays === v}">${l}</button>`).join('')}</div>
+    <div class="ins-funnel">
+      ${step('Careers page views', careers, 'People who opened your careers page')}
+      ${step('Job page views', views, careers ? `${(views / careers).toFixed(1)} per careers view` : 'Including links shared by your team')}
+      ${step('Applications', applied, views ? `${pct(applied, views)} of job views` : 'Through the careers page or a referral link')}
+      ${step('Referrals by your team', referred, `${opens} referral link opens, ${joined} new teammates`)}
+    </div>
+    ${daily.some(Boolean) ? `<section class="panel"><h2>Careers and job page views per day</h2><div class="trend tall">${days.map((x, i) => `<div title="${x}: ${daily[i]} views"><b>${d.days <= 14 ? daily[i] || '' : ''}</b><i style="height:${(daily[i] / max) * 75}%"></i><span>${d.days <= 31 ? x.slice(8) : ''}</span></div>`).join('')}</div></section>` : ''}
+    <section class="panel" style="margin-top:1.25rem"><h2>Jobs</h2>
+      ${jobs.length ? `<div class="table-wrap flat"><table><thead><tr><th>Job</th><th class="num-cell">Views</th><th class="num-cell">Applications</th><th class="num-cell">Team referrals</th><th class="num-cell">Rate</th></tr></thead>
+        <tbody>${jobs.map((j) => `<tr><td><div class="t">${esc(j.title)} ${j.status === 'open' ? '' : '<span class="pill">Closed</span>'}</div><div>${advice(j)}</div></td>
+          <td class="num-cell"><b>${j.v}</b></td><td class="num-cell">${j.a}</td><td class="num-cell">${j.r}</td><td class="num-cell">${j.v ? pct(j.a, j.v) : 'n/a'}</td></tr>`).join('')}</tbody></table></div>`
+        : '<p class="muted">Post a job to start seeing how it performs.</p>'}</section>
+    <section class="panel" style="margin-top:1.25rem"><h2>Who's sharing their links</h2>
+      ${sharers.length ? `<ul class="rows">${sharers.map((p, i) => `<li><span class="rank ${i === 0 ? 'top' : ''}">${i + 1}</span><div style="flex:1" class="t">${esc(p.name)}</div><b>${p.n} ${p.n === 1 ? 'open' : 'opens'}</b></li>`).join('')}</ul>`
+        : '<p class="muted">Nobody\'s referral links have been opened in this period. Employees find their links on each job under Copy my link.</p>'}</section>
+    <p class="muted small" style="margin-top:1rem">Counts are anonymous: no names, emails or IP addresses of visitors are stored.</p>`;
+  $$('[data-days]').forEach((b) => b.addEventListener('click', () => { insDays = Number(b.dataset.days); insightsView(); }));
+}
+
+// ---------- help (support chat with Referleey) ----------
+async function helpView() {
+  const d = await api('/support');
+  S.support_unread = 0;
+  updateHelpBadge();
+  view.innerHTML = `${head('Help', 'Questions about Referleey? Message the Referleey team here.')}
+    <section class="panel chat-view">
+      <div class="chat-thread" id="thread">${d.messages.length ? d.messages.map((m) => `<div class="msg ${m.from_admin ? 'them' : 'me'}"><p>${esc(m.body)}</p><time>${m.from_admin ? 'Referleey team, ' : ''}${esc(new Date(m.created_at).toLocaleString())}</time></div>`).join('')
+        : '<p class="muted chat-empty">No messages yet. Ask anything about setting up your program, rewards or your account. Replies show up here.</p>'}</div>
+      <form class="chat-reply" id="hform"><textarea id="hmsg" rows="2" maxlength="3000" placeholder="Write a message" aria-label="Message" required></textarea><button class="btn" type="submit">Send</button></form>
+    </section>`;
+  const th = $('#thread');
+  th.scrollTop = th.scrollHeight;
+  $('#hform').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = $('#hmsg').value.trim();
+    if (!text) return;
+    const btn = e.target.querySelector('button');
+    btn.disabled = true;
+    try { await api('/support', { method: 'POST', body: { body: text } }); toast('Message sent'); helpView(); }
+    catch (err) { toast(err.message, true); btn.disabled = false; }
+  });
+}
+function updateHelpBadge() {
+  const a = $('#nav a[href="#/help"]');
+  if (a) a.innerHTML = `Help${S.support_unread ? ` <span class="badge">${S.support_unread}</span>` : ''}`;
+}
+
+// ---------- account ----------
+function accountView() {
+  view.innerHTML = `${head('Account', 'Your sign-in details.')}
+    <div class="panel" style="max-width:40rem">
+      <dl class="facts"><div><dt>Name</dt><dd>${esc(S.user.name)}</dd></div><div><dt>Email</dt><dd>${esc(S.user.email.endsWith('.invalid') ? 'Demo account' : S.user.email)}</dd></div>
+        <div><dt>Company</dt><dd>${esc(S.company.name)}</dd></div><div><dt>Access</dt><dd>${isAdmin() ? 'Admin' : 'Employee'}</dd></div></dl>
+    </div>
+    ${S.has_password ? `<form class="panel" id="pw-form" style="max-width:40rem;margin-top:1.25rem" novalidate>
+      <h2>Change password</h2>
+      <div class="form-error hidden" role="alert"></div>
+      <div class="field"><label for="pw-cur">Current password</label><input id="pw-cur" name="current" type="password" autocomplete="current-password" required></div>
+      <div class="field"><label for="pw-new">New password</label><input id="pw-new" name="next" type="password" minlength="8" autocomplete="new-password" required><p class="hint">At least 8 characters. You'll stay signed in here and be signed out on other devices.</p></div>
+      <button class="btn" type="submit">Change password</button>
+    </form>` : '<p class="muted" style="margin-top:1rem">Demo accounts don\'t have a password.</p>'}`;
+  const f = $('#pw-form');
+  if (f) handleForm(f, async (d) => { await api('/account/password', { method: 'PUT', body: d }); f.reset(); toast('Password changed'); });
+}
+
 // ---------- shell ----------
 const ROUTES = {
   overview: { label: 'Overview', fn: overview },
   jobs: { label: 'Open roles', fn: jobsView },
   referrals: { label: 'Referrals', employeeLabel: 'My referrals', fn: referralsView },
   leaderboard: { label: 'Leaderboard', fn: leaderboardView },
+  insights: { label: 'Insights', fn: insightsView, admin: true },
   team: { label: 'Team', fn: teamView, admin: true },
   settings: { label: 'Settings', fn: settingsView, admin: true },
+  help: { label: 'Help', fn: helpView },
+  account: { label: 'Account', fn: accountView },
 };
 
 async function loadMe() {
@@ -416,6 +522,7 @@ async function route() {
   const active = r === ROUTES[key] ? key : 'overview';
   $('#nav').innerHTML = Object.entries(ROUTES).filter(([, v]) => !v.admin || isAdmin()).map(([k, v]) =>
     `<a href="#/${k}" class="${k === active ? 'on' : ''}" ${k === active ? 'aria-current="page"' : ''}>${esc(!isAdmin() && v.employeeLabel ? v.employeeLabel : v.label)}</a>`).join('');
+  updateHelpBadge();
   $('#side').classList.remove('open');
   try {
     await r.fn();
@@ -432,7 +539,21 @@ $('#logout').addEventListener('click', async () => {
 $('#menu').addEventListener('click', () => $('#side').classList.toggle('open'));
 window.addEventListener('hashchange', route);
 
-loadMe().then(route).catch((err) => {
+async function showAnnouncement() {
+  try {
+    const { announcement: a } = await api('/public/announcement');
+    if (!a || a.audience === 'public' || (a.audience === 'admins' && !isAdmin())) return;
+    showBanner(a, $('.main'));
+  } catch { /* optional */ }
+}
+setInterval(async () => {
+  try {
+    const d = await api('/me');
+    if (d.support_unread !== S.support_unread) { S.support_unread = d.support_unread; updateHelpBadge(); }
+  } catch { /* ignore */ }
+}, 60000);
+
+loadMe().then(() => { showAnnouncement(); return route(); }).catch((err) => {
   if (err.status === 401) location.href = '/login';
   else view.innerHTML = empty('The workspace didn\'t load', err.message);
 });
